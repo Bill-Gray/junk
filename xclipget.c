@@ -2,60 +2,80 @@
 
 https://stackoverflow.com/questions/27378318/c-get-string-from-clipboard-on-linux
 
-See also : https://github.com/exebook/x11clipboard
+(except broken out as a modular function and some bug fixes... actually,  not
+much of a 'copy' anymore.)
+
+See also : https://github.com/exebook/x11clipboard . Compile with
+
+   gcc -o xclipget xclipget.c -lX11
 */
 
-// gcc -o xclipget xclipget.c -lX11
-#include <stdio.h>
 #include <limits.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
 #include <X11/Xlib.h>
 
-Bool PrintSelection(Display *display, Window window, const char *bufname, const char *fmtname)
+char *get_x_selection( const bool is_primary)
 {
-  char *result;
-  unsigned long ressize, restail;
-  int resbits;
-  Atom bufid = XInternAtom(display, bufname, False),
-       fmtid = XInternAtom(display, fmtname, False),
-       propid = XInternAtom(display, "XSEL_DATA", False),
-       incrid = XInternAtom(display, "INCR", False);
-  XEvent event;
+   Display *display = XOpenDisplay( 0);
+   int N = DefaultScreen( display);
+   unsigned long color = BlackPixel( display, N);
+   Window window = XCreateSimpleWindow( display, RootWindow( display, N),
+              0, 0, 1, 1, 0, color, color);
+   Atom UTF8 = XInternAtom( display, "UTF8_STRING", 1);
+   const Atom XA_STRING = 31;
+   char *result, *rval = NULL;
+   unsigned long ressize, restail;
+   int resbits;
+   const Atom bufid = XInternAtom(display, (is_primary ? "PRIMARY" : "CLIPBOARD"), False),
+        propid = XInternAtom(display, "XSEL_DATA", False),
+        incrid = XInternAtom(display, "INCR", False);
+   XEvent event;
 
-  XConvertSelection(display, bufid, fmtid, propid, window, CurrentTime);
-  do {
-    XNextEvent(display, &event);
-  } while (event.type != SelectionNotify || event.xselection.selection != bufid);
+   if (UTF8 == None)
+       UTF8 = XA_STRING;
+   XConvertSelection(display, bufid, UTF8, propid, window, CurrentTime);
+   do {
+      XNextEvent(display, &event);
+   } while (event.type != SelectionNotify || event.xselection.selection != bufid);
 
-  if (event.xselection.property)
-  {
-    XGetWindowProperty(display, window, propid, 0, LONG_MAX/4, False, AnyPropertyType,
-      &fmtid, &resbits, &ressize, &restail, (unsigned char**)&result);
+   if (event.xselection.property)
+      {
+      XGetWindowProperty(display, window, propid, 0, LONG_MAX/4, False, AnyPropertyType,
+             &UTF8, &resbits, &ressize, &restail, (unsigned char**)&result);
 
-    if (fmtid == incrid)
-      printf("Buffer is too large and INCR reading is not implemented yet.\n");
-    else
-      printf("%.*s", (int)ressize, result);
-
-    XFree(result);
-    XDeleteProperty( display, window, propid);
-    return True;
-  }
-  else // request failed, e.g. owner can't convert to the target format
-  {
-    printf( "Can't get format '%s'\n", fmtname);
-    return False;
-  }
+      if( UTF8 != incrid)
+         {
+         rval = (char *)malloc( ressize + 1);
+         memcpy( rval, result, ressize);
+         rval[ressize] = '\0';
+         }
+/*    else
+         printf("Buffer is too large and INCR reading is not implemented yet.\n");
+*/    XFree(result);
+      XDeleteProperty( display, window, propid);
+      }
+   XDestroyWindow(display, window);
+   XCloseDisplay(display);
+   return( rval);
 }
+
+#define INTENTIONALLY_UNUSED_PARAMETER( param) (void)(param)
+
+#include <stdio.h>
 
 int main( const int argc, const char **argv)
 {
-  Display *display = XOpenDisplay(NULL);
-  unsigned long color = BlackPixel(display, DefaultScreen(display));
-  Window window = XCreateSimpleWindow(display, DefaultRootWindow(display), 0,0, 1,1, 0, color, color);
-  const char *desired_buff = (argc == 1 ? "CLIPBOARD" : "PRIMARY");
-  Bool result = PrintSelection(display, window, desired_buff, "UTF8_STRING") ||
-                PrintSelection(display, window, desired_buff, "STRING");
-  XDestroyWindow(display, window);
-  XCloseDisplay(display);
-  return !result;
+   char *text = get_x_selection( argc == 1);
+
+   INTENTIONALLY_UNUSED_PARAMETER( argv);
+   if( !text)
+      printf( "Couldn't get selection\n");
+   else
+      {
+      printf( "'%s'\n", text);
+      free( text);
+      }
+   return( 0);
 }

@@ -2,7 +2,6 @@
 
 #include <string.h> // strlen
 #include <X11/Xlib.h>
-#include <stdio.h>
 
 /* Programs using these functions should link with -lX11 -lpthread.
 
@@ -33,27 +32,27 @@ int XCopy_threaded( const char *text, const char *cliptype);
 
 int XCopy( const char *text, const char *cliptype)
 {
-   Display *display = XOpenDisplay(0);
-   int N = DefaultScreen(display);
+   Display *display = XOpenDisplay( 0);
+   int N = DefaultScreen( display);
    unsigned long color = BlackPixel( display, N);
-   Window window = XCreateSimpleWindow(display, RootWindow(display, N), 0, 0, 1, 1, 0,
-               color, color);
-   const Atom targets_atom = XInternAtom(display, "TARGETS", 0);
-   const Atom text_atom = XInternAtom(display, "TEXT", 0);
-   Atom UTF8 = XInternAtom(display, "UTF8_STRING", 1);
+   Window window = XCreateSimpleWindow( display, RootWindow( display, N),
+              0, 0, 1, 1, 0, color, color);
+   Atom UTF8 = XInternAtom( display, "UTF8_STRING", 1);
    const Atom XA_ATOM = 4, XA_STRING = 31;
+   const Atom targets_atom = XInternAtom( display, "TARGETS", 0);
+   const Atom text_atom = XInternAtom(display, "TEXT", 0);
    const Atom selection = XInternAtom(display, cliptype, 0);
    XEvent event;
    int rval = 0;
 
    if (UTF8 == None)
        UTF8 = XA_STRING;
-   XSetSelectionOwner (display, selection, window, 0);
-   if( XGetSelectionOwner (display, selection) != window)
+   XSetSelectionOwner( display, selection, window, 0);
+   if( XGetSelectionOwner( display, selection) != window)
       rval = -1;
    else do
    {
-      XNextEvent (display, &event);
+      XNextEvent( display, &event);
       if( event.type == SelectionRequest &&
                event.xselectionrequest.selection == selection)
       {
@@ -89,9 +88,8 @@ int XCopy( const char *text, const char *cliptype)
 static void *XCopy_thread_func( void *clip_request)
 {
    const char **args = (const char **)clip_request;
-   int rval =  XCopy( args[0], args[1]);
 
-   printf( "Done: %d\n", rval);
+   XCopy( args[0], args[1]);
    return( NULL);
 }
 
@@ -106,6 +104,8 @@ int XCopy_threaded( const char *text, const char *cliptype)
    rval = pthread_create( &unused_pthread_rval, NULL, XCopy_thread_func, args);
    return( rval);
 }
+
+#include <stdio.h>
 
 int main( const int argc, const char **argv)
 {
