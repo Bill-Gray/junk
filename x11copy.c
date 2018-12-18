@@ -2,6 +2,7 @@
 
 #include <string.h> // strlen
 #include <X11/Xlib.h>
+#include "clip_fns.h"
 
 /* Programs using these functions should link with -lX11 -lpthread.
 
@@ -27,10 +28,10 @@ have a very short life.)
 
    'cliptype' should be either PRIMARY or CLIPBOARD'.   */
 
-int XCopy( const char *text, const char *cliptype);
+static int XCopy( const char *text, const char *cliptype);
 int XCopy_threaded( const char *text, const char *cliptype);
 
-int XCopy( const char *text, const char *cliptype)
+static int XCopy( const char *text, const char *cliptype)
 {
    Display *display = XOpenDisplay( 0);
    int N = DefaultScreen( display);
@@ -93,30 +94,15 @@ static void *XCopy_thread_func( void *clip_request)
    return( NULL);
 }
 
-int XCopy_threaded( const char *text, const char *cliptype)
+int copy_text_to_clipboard( const char *text, const int clip_type)
 {
    int rval;
    pthread_t unused_pthread_rval;
    const char *args[3];
 
    args[0] = text;
-   args[1] = cliptype;
+   args[1] = (clip_type ? "SELECTION" : "CLIPBOARD");
+   args[2] = NULL;
    rval = pthread_create( &unused_pthread_rval, NULL, XCopy_thread_func, args);
-   return( rval);
-}
-
-#include <stdio.h>
-
-int main( const int argc, const char **argv)
-{
-   const char *selection = "CLIPBOARD";
-   int rval;
-
-   if( argc > 2)
-      selection = (argv[2][0] == 'm' ? "CLIPBOARD" : "PRIMARY");
-   rval = XCopy_threaded( argv[1], selection);
-   printf( "Selection '%s' : %d\n", selection, rval);
-   printf( "Hit enter when done\n");
-   getchar( );
    return( rval);
 }

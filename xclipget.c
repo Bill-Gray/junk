@@ -5,9 +5,7 @@ https://stackoverflow.com/questions/27378318/c-get-string-from-clipboard-on-linu
 (except broken out as a modular function and some bug fixes... actually,  not
 much of a 'copy' anymore.)
 
-See also : https://github.com/exebook/x11clipboard . Compile with
-
-   gcc -o xclipget xclipget.c -lX11
+See also : https://github.com/exebook/x11clipboard . Compile with -lX11.
 */
 
 #include <limits.h>
@@ -15,8 +13,9 @@ See also : https://github.com/exebook/x11clipboard . Compile with
 #include <stdlib.h>
 #include <string.h>
 #include <X11/Xlib.h>
+#include "clip_fns.h"
 
-char *get_x_selection( const bool is_primary)
+char *get_x_selection( const int clip_type)
 {
    Display *display = XOpenDisplay( 0);
    int N = DefaultScreen( display);
@@ -28,7 +27,7 @@ char *get_x_selection( const bool is_primary)
    char *result, *rval = NULL;
    unsigned long ressize, restail;
    int resbits;
-   const Atom bufid = XInternAtom(display, (is_primary ? "PRIMARY" : "CLIPBOARD"), False),
+   const Atom bufid = XInternAtom(display, (clip_type ? "PRIMARY" : "CLIPBOARD"), False),
         propid = XInternAtom(display, "XSEL_DATA", False),
         incrid = XInternAtom(display, "INCR", False);
    XEvent event;
@@ -59,23 +58,4 @@ char *get_x_selection( const bool is_primary)
    XDestroyWindow(display, window);
    XCloseDisplay(display);
    return( rval);
-}
-
-#define INTENTIONALLY_UNUSED_PARAMETER( param) (void)(param)
-
-#include <stdio.h>
-
-int main( const int argc, const char **argv)
-{
-   char *text = get_x_selection( argc == 1);
-
-   INTENTIONALLY_UNUSED_PARAMETER( argv);
-   if( !text)
-      printf( "Couldn't get selection\n");
-   else
-      {
-      printf( "'%s'\n", text);
-      free( text);
-      }
-   return( 0);
 }
