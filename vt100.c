@@ -2,6 +2,7 @@
 #include <string.h>
 #include <sys/select.h>
 #include <termios.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 /* Demonstrates low-level terminal access to keyboard and, via VT100
@@ -112,11 +113,20 @@ static void get_console_loc( int *x, int *y, const int size)
       }
 }
 
-int main( )
+int main( const int argc, const char **argv)
 {
-   int i = 0, c, x, y, xsize, ysize, txt[10];
+   int i, x, y, xsize, ysize, txt[10];
+   int mouse_tracking = 1000;    /* "standard" mouse tracking */
    struct winsize max;
 
+   for( i = 1; i < argc; i++)
+      if( argv[i][0] == '-')
+         switch( argv[i][1])
+            {
+            case 'm':
+               mouse_tracking = atoi( argv[i] + 2);
+               break;
+            }
    setbuf( stdin, NULL);
    setbuf( stdout, NULL);
    ioctl(0, TIOCGWINSZ , &max);
@@ -166,16 +176,30 @@ int main( )
    printf( "Terminal size is (%d, %d)\n", xsize, ysize);
    printf( DIM_ON "Dimmed text" VT_NORMAL "\n");
    printf( DOUBLE_UNDER "Double underlined text" VT_NORMAL "\n");
+   printf( "(The above produces double underlining,  one underline,  or no underline.)\n");
    printf( "Hit keys:\n");
-   printf( "\033[?1000h");    /* enable mouse events,  at least on xterm */
+   printf( "\033[?%dh", mouse_tracking);
    do
       {
       int n = 0;
 
       printf( ".");
-      while( n < 9 && (txt[n] = kbhit()) >= 0)
+      while( n < 6 && (txt[n] = kbhit()) >= 0)
          n++;
-      if( n)
+      if( n == 6 && txt[0] == 27 && txt[1] == '[' && txt[2] == 'M')
+         printf( "Mouse button %d at (%d, %d)\n",
+                  txt[3], txt[4] - ' ', txt[5] - ' ');
+      else if( n == 6 && txt[0] == 27 && txt[1] == '[' && txt[2] == '<')
+         {
+         printf( "SGR mouse <%c%c%c", txt[3], txt[4], txt[5]);
+         while( n != 'm' && n != 'M')
+            {
+            n = kbhit( );
+            printf( "%c", n);
+            }
+         printf( "\n");
+         }
+      else if( n)
          {
          printf( "(");
          for( i = 0; i < n; i++)
