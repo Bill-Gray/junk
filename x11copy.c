@@ -2,6 +2,7 @@
 
 #include <string.h> // strlen
 #include <X11/Xlib.h>
+#include <assert.h>
 #include "clip_fns.h"
 
 /* Programs using these functions should link with -lX11 -lpthread.
@@ -90,6 +91,9 @@ static void *XCopy_thread_func( void *clip_request)
 {
    const char **args = (const char **)clip_request;
 
+   assert( args);
+   assert( args[0]);
+   assert( args[1]);
    XCopy( args[0], args[1]);
    return( NULL);
 }
@@ -98,7 +102,7 @@ int copy_text_to_clipboard( const char *text, const int clip_type)
 {
    int rval;
    pthread_t unused_pthread_rval;
-   const char *args[3];
+   static const char *args[3];
 
    args[0] = text;
    args[1] = (clip_type ? "SELECTION" : "CLIPBOARD");
