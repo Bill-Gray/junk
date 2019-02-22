@@ -1,4 +1,4 @@
-all: testclip pend
+all: testclip pend vt100
 
 CFLAGS=-Wall -O3 -Wextra -pedantic
 
@@ -10,6 +10,8 @@ pend : pend.c
 
 testclip : testclip.o x11copy.o xclipget.o
 	$(CC) $(CFLAGS) -o testclip testclip.o x11copy.o xclipget.o -lX11 -lpthread
+
+vt100 : vt100.o
 
 clean:
 	rm xclipget.o x11copy.o testclip.o pend testclip
