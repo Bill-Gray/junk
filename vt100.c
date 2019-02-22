@@ -208,7 +208,7 @@ int main( const int argc, const char **argv)
          }
       }
       while( txt[0] != 'q');
-   printf( "\033[?1000l");    /* end enable mouse events,  at least on xterm */
+   printf( "\033[?%dl", mouse_tracking);     /* end mouse events on xterm */
    printf( "Cursor is at ");
    get_console_loc( &x, &y, 0);
    printf( "(%d, %d)\n", x, y);
