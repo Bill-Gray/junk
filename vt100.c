@@ -117,6 +117,7 @@ int main( const int argc, const char **argv)
 {
    int i, x, y, xsize, ysize, txt[10];
    int mouse_tracking = 1000;    /* "standard" mouse tracking */
+   int mouse_tracking_2 = 0;
    struct winsize max;
 
    for( i = 1; i < argc; i++)
@@ -125,6 +126,9 @@ int main( const int argc, const char **argv)
             {
             case 'm':
                mouse_tracking = atoi( argv[i] + 2);
+               break;
+            case 'M':
+               mouse_tracking_2 = atoi( argv[i] + 2);
                break;
             }
    setbuf( stdin, NULL);
@@ -179,6 +183,8 @@ int main( const int argc, const char **argv)
    printf( "(The above produces double underlining,  one underline,  or no underline.)\n");
    printf( "Hit keys:\n");
    printf( "\033[?%dh", mouse_tracking);
+   if( mouse_tracking_2)
+      printf( "\033[?%dh", mouse_tracking_2);
    do
       {
       int n = 0;
@@ -208,6 +214,8 @@ int main( const int argc, const char **argv)
          }
       }
       while( txt[0] != 'q');
+   if( mouse_tracking_2)
+      printf( "\033[?%dl", mouse_tracking_2);
    printf( "\033[?%dl", mouse_tracking);     /* end mouse events on xterm */
    printf( "Cursor is at ");
    get_console_loc( &x, &y, 0);
