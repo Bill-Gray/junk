@@ -1,23 +1,33 @@
-/* copied from https://github.com/exebook/x11clipboard */
-
 #include <limits.h>
-// #include <stdbool.h>
+#include <string.h>
 #include <stdlib.h>
-#include <string.h> // strlen
 #include <X11/Xlib.h>
 #include <assert.h>
 
-/* Programs using these functions should link with -lX11 -lpthread.
+/* Separable PDC clipboard functions for X11.  These can be used
+without bringing in the rest of PDCurses.  They can also be used
+on the VT platform (if you've got X11 going) and in wmcbrine's
+'x11new' platform.  In both cases,  you have to add -pthreads to
+the Makefile.
+
+   Programs using PDC_setclipboard should link with -lX11 -lpthread.
+Programs only using PDC_getclipboard will only need -lX11 (no threading).
+
+   Much of this was copied from :
+
+https://stackoverflow.com/questions/27378318/c-get-string-from-clipboard-on-linux
+https://github.com/exebook/x11clipboard
 
    The X11 clipboard is display-specific,  so our first task is to open
 the root display.  The clipboard is "owned" by a window,  so we make a
 dummy window,  and try to set it as the selection owner.  That may
 conceivably fail,  so we check to make sure we really got it.
 
-   Then we go into a loop waiting for somebody to request the selection.
-If they do,  and they're looking for UTF8 or ASCII text,  we give them
-what they're looking for.  If we're notified that the selection has been
-cleared (somebody else wants to own it),  we're done and return 0.
+   Then,  if copying,  we go into a loop waiting for somebody to request
+the selection. If they do,  and they're looking for UTF8 or ASCII text,
+we give them what they're looking for.  If we're notified that the
+selection has been cleared (somebody else wants to own it),  we're done
+and return 0.
 
    Ideally,  this whole looping-waiting-for-requests should take place in
 a separate thread so that the rest of our program can go on with its
@@ -49,7 +59,6 @@ static int XCopy( const char *text, const char *cliptype, long length)
    XEvent event;
    int rval = 0;
 
-   length = (long)strlen( text);
    if (UTF8 == None)
        UTF8 = XA_STRING;
    XSetSelectionOwner( display, selection, window, 0);
@@ -93,12 +102,12 @@ static int XCopy( const char *text, const char *cliptype, long length)
 static void *XCopy_thread_func( void *clip_request)
 {
    char **args = (char **)clip_request;
-   const long *lenptr = (const long *)args[2];
+   const long local_length = (const long)args[2];
 
    assert( args);
    assert( args[0]);
    assert( args[1]);
-   XCopy( args[0], args[1], *lenptr);
+   XCopy( args[0], args[1], local_length);
    free( args[0]);
    return( NULL);
 }
@@ -114,21 +123,11 @@ int PDC_setclipboard( const char *contents, long length)
    args[0][length] = '\0';
    memcpy( args[0], contents, length);
    args[1] = "CLIPBOARD";
-   args[2] = (char *)&length;
+   args[2] = (char *)length;
    args[3] = NULL;
    rval = pthread_create( &unused_pthread_rval, NULL, XCopy_thread_func, args);
    return( rval);
 }
-
-/* Shameless copy of
-
-https://stackoverflow.com/questions/27378318/c-get-string-from-clipboard-on-linux
-
-(except broken out as a modular function and some bug fixes... actually,  not
-much of a 'copy' anymore.)
-
-See also : https://github.com/exebook/x11clipboard . Compile with -lX11.
-*/
 
 int PDC_getclipboard( char **contents, long *length)
 {
