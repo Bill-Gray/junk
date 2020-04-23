@@ -44,7 +44,11 @@ static int kbhit(void)
     timeout.tv_sec = 0;
     timeout.tv_usec = 50000;
     if( select( STDIN + 1, &rdset, NULL, NULL, &timeout) > 0)
+       {
        c = getchar();
+       if( c < 0)
+           c += 256;
+       }
     tcsetattr( STDIN, TCSANOW, &oterm);
     return( c);
 }
@@ -67,6 +71,7 @@ https://stackoverflow.com/questions/6812224/getting-terminal-size-in-c-for-windo
 #define VT_MAGENTA       "\033[35m"
 #define VT_CYAN          "\033[36m"
 #define VT_WHITE         "\033[37m"
+#define VT_FG_DEFAULT       "\033[39m"
 
 #define VT_BG_BLACK         "\033[40m"
 #define VT_BG_RED           "\033[41m"
@@ -76,6 +81,7 @@ https://stackoverflow.com/questions/6812224/getting-terminal-size-in-c-for-windo
 #define VT_BG_MAGENTA       "\033[45m"
 #define VT_BG_CYAN          "\033[46m"
 #define VT_BG_WHITE         "\033[47m"
+#define VT_BG_DEFAULT       "\033[49m"
 
 #define DIM_ON        "\033[2m"
 #define DOUBLE_UNDER  "\033[21m"
@@ -148,14 +154,18 @@ int main( const int argc, const char **argv)
       {
       if( i)
          printf( "\033[1mBold versions:\n");
-      printf( "\033[31m  Red foreground\n");
-      printf( "\033[32m  Green\n");
+      printf( VT_RED   "  Red foreground\n");
+      printf( VT_GREEN "  Green\n");
       printf( "\033[33m  'Brown' (actually shows up yellow)\n");
       printf( "\033[34m  Blue\n");
       printf( "\033[35m  Magenta/purple\n");
+      printf( VT_FG_DEFAULT "  Foreground is default color\n");
+      printf( VT_BG_RED "  Still default foreground,  red background\n");
       printf( "\033[36m  Cyan\n");
       printf( "\033[37m  Gray\n");
+      printf( VT_BG_BLACK "  Switch to black background\n");
       }
+   printf( VT_BG_DEFAULT "  Switch to default background\n");
    printf( "\033[0m\033[5mBlinking text (if supported)\n");
    printf( "\033[0m\033[7mReverse video (if supported)\n");
    printf( "\033[10A\033[30CHey!  I moved up ten lines and right 30 columns!\n");
@@ -214,6 +224,7 @@ int main( const int argc, const char **argv)
          }
       }
       while( txt[0] != 'q');
+   printf( VT_BG_BLACK "  Switch to black background\n");
    if( mouse_tracking_2)
       printf( "\033[?%dl", mouse_tracking_2);
    printf( "\033[?%dl", mouse_tracking);     /* end mouse events on xterm */
