@@ -121,7 +121,7 @@ static void get_console_loc( int *x, int *y, const int size)
 
 int main( const int argc, const char **argv)
 {
-   int i, x, y, xsize, ysize, txt[10];
+   int i, x, y, xsize, ysize, txt[100];
    int mouse_tracking = 1000;    /* "standard" mouse tracking */
    int mouse_tracking_2 = 0;
    struct winsize max;
@@ -189,7 +189,7 @@ int main( const int argc, const char **argv)
    printf( "\033[3mStandout\033[0m text\n");
    printf( "Terminal size is (%d, %d)\n", xsize, ysize);
    printf( DIM_ON "Dimmed text" VT_NORMAL "\n");
-   printf( DOUBLE_UNDER "Double underlined text" VT_NORMAL "\n");
+   printf( DOUBLE_UNDER "Doubly underlined text" VT_NORMAL "\n");
    printf( "(The above produces double underlining,  one underline,  or no underline.)\n");
    printf( "Hit keys:\n");
    printf( "\033[?%dh", mouse_tracking);
@@ -200,7 +200,7 @@ int main( const int argc, const char **argv)
       int n = 0;
 
       printf( ".");
-      while( n < 6 && (txt[n] = kbhit()) >= 0)
+      while( n < 100 && (txt[n] = kbhit()) >= 0)
          n++;
       if( n == 6 && txt[0] == 27 && txt[1] == '[' && txt[2] == 'M')
          printf( "Mouse button %d at (%d, %d)\n",
