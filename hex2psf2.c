@@ -15,7 +15,17 @@
 
    and output a PSF type 2 font,  as described at
 
-https://www.win.tue.nl/~aeb/linux/kbd/font-formats-1.html      */
+https://www.win.tue.nl/~aeb/linux/kbd/font-formats-1.html
+
+   At present,  this is limited to 8x16 fonts.  In the following structure,
+'bits' contains 32 bytes,  to allow for possible 16x16 versions.  */
+
+typedef struct
+{
+   uint32_t code_point;
+   uint8_t bits[32];
+   int height, width;
+} glyph_t;
 
 #define PSF2_MAGIC0     0x72
 #define PSF2_MAGIC1     0xb5
@@ -42,8 +52,6 @@ struct psf2_header {
         uint32_t height, width; /* max dimensions of glyphs */
         /* charsize = height * ((width + 7) / 8) */
 };
-
-#define MAX_UNICODE_INFO 1048576
 
    /* Ripped,  intact,  from 'pdcurses/util.c' in PDCurses. */
 
@@ -83,10 +91,10 @@ int PDC_wc_to_utf8( char *dest, const int32_t code)
 
 /* At present,  just looks for 8x16 fonts */
 
-static int32_t get_font_bits( char *buff, struct psf2_header *hdr)
+static int get_font_bits( const char *buff, glyph_t *glyph)
 {
    int i, rval = -1;
-   char *tptr = buff + 4;
+   const char *tptr = buff + 4;
 
    if( *tptr != ':')
       tptr++;
@@ -94,7 +102,12 @@ static int32_t get_font_bits( char *buff, struct psf2_header *hdr)
       tptr++;
    if( *tptr == ':' && tptr[33] < ' ')
       {
-      sscanf( buff, "%x", &rval);
+      unsigned code_point;
+
+      sscanf( buff, "%x", &code_point);
+      glyph->code_point = code_point;
+      glyph->height = 16;
+      glyph->width = 8;
       tptr++;
       for( i = 0; i < 16; i++)
          {
@@ -105,27 +118,32 @@ static int32_t get_font_bits( char *buff, struct psf2_header *hdr)
             digit1 += 10 + '0' - 'A';
          if( digit2 >= 10)
             digit2 += 10 + '0' - 'A';
-         buff[i] = (char)( digit1 * 16 + digit2);
+         glyph->bits[i] = (char)( digit1 * 16 + digit2);
          }
+      rval = 0;
       }
-   return( (int32_t)rval);
+   return( rval);
 }
+
+#define IS_POWER_OF_TWO( n)    (((n) & ((n)-1)) == 0)
 
 int main( const int argc, const char **argv)
 {
    FILE *ifile = fopen( argv[1], "rb"), *ofile;
    struct psf2_header hdr;
-   int32_t unicode_pt;
-   int n_glyphs = 0;
+   int i, n_glyphs = 0;
    char buff[100];
-   char *unicode_info = (char *)malloc( MAX_UNICODE_INFO);
-   char *uptr = unicode_info;
+   glyph_t *glyph = (glyph_t *)malloc( sizeof( glyph_t));
 
    assert( argc == 3);
    assert( ifile);
    ofile = fopen( argv[2], "wb");
    assert( ofile);
-   fread( &hdr, 1, sizeof( hdr), ifile);
+   if( fread( &hdr, 1, sizeof( hdr), ifile) != sizeof( hdr))
+      {
+      fprintf( stderr, "Couldn't read header from %s\n", argv[1]);
+      return( -1);
+      }
    hdr.magic[0] = PSF2_MAGIC0;
    hdr.magic[1] = PSF2_MAGIC1;
    hdr.magic[2] = PSF2_MAGIC2;
@@ -134,21 +152,27 @@ int main( const int argc, const char **argv)
    hdr.width = 8;
    hdr.height = hdr.charsize = 16;
    hdr.version = 0;
-   hdr.headersize = sizeof( hdr);
    fwrite( &hdr, 1, sizeof( hdr), ofile);
    while( fgets( buff, sizeof( buff), ifile))
-      if( (unicode_pt = get_font_bits( buff, &hdr)) >= 0)
+      if( !get_font_bits( buff, glyph + n_glyphs))
          {
-         const int bytes_written = PDC_wc_to_utf8( uptr, unicode_pt);
-
-         fwrite( buff, hdr.charsize, 1, ofile);
          n_glyphs++;
-         uptr += bytes_written;
-         *uptr++ = (unsigned char)0xff;
+         if( IS_POWER_OF_TWO( n_glyphs))
+            glyph = (glyph_t *)realloc( glyph, 2 * n_glyphs * sizeof( glyph_t));
          }
    fclose( ifile);
-   fwrite( unicode_info, uptr - unicode_info, 1, ofile);
-   free( unicode_info);
+   hdr.headersize = (uint32_t)ftell( ofile);
+   for( i = 0; i < n_glyphs; i++)
+      fwrite( glyph[i].bits, hdr.charsize, 1, ofile);
+   for( i = 0; i < n_glyphs; i++)
+      {
+      char utf8[5];
+      const int osize = PDC_wc_to_utf8( utf8, glyph[i].code_point);
+
+      utf8[osize] = (char)PSF2_SEPARATOR;
+      fwrite( utf8, osize + 1, 1, ofile);
+      }
+   free( glyph);
    hdr.length = n_glyphs;
    fseek( ofile, 0L, SEEK_SET);
    fwrite( &hdr, 1, sizeof( hdr), ofile);
