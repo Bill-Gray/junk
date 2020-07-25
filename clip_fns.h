@@ -1,4 +1,7 @@
-/* At present,  these are the only two selection types supported.
+/* ALMOST CERTAINLY SUPERSEDED BY xclip.c.  Ignore this.  Historical
+interest only.
+
+   At present,  these are the only two selection types supported.
 Then again,  the other types are all deprecated anyway. */
 
 #define CLIPTYPE_CLIPBOARD          0
