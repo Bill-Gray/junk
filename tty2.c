@@ -117,11 +117,11 @@ static int check_nomorobo( const char *tel_no)
       return( -1);
       }
    snprintf( buff, sizeof( buff),
-            "wget https://www.nomorobo.com/lookup/%s -O /tmp/zq", full_no);
+            "wget https://www.nomorobo.com/lookup/%s -O /tmp/zq_tel", full_no);
 // strcat( buff, "> /dev/null 2>&1");
    rval = system( buff);
    printf( "%d: command '%s'\n", rval, buff);
-// unlink( "/tmp/zq");
+// unlink( "/tmp/zq_tel");
    return( rval);
 }
 
@@ -222,6 +222,7 @@ int main( const int argc, const char **argv)
                      FILE *ifile = fopen( "allutlzd.txt", "rb");
                      char number[20];
                      bool number_is_cleared = false;
+                     const time_t t0 = time( NULL);
 
                      assert( ifile);
                      if( i == 17)
@@ -242,7 +243,7 @@ int main( const int argc, const char **argv)
                            printf( "%.13s %.2s\n", buff + 86, buff);
                      fclose( ifile);
 
-                     ifile = fopen( "tel_nos.txt", "rb");
+                     ifile = fopen( "tel_nos.txt", "r+b");
                      assert( ifile);
                      while( fgets( buff, sizeof( buff), ifile))
                         {
@@ -272,10 +273,13 @@ int main( const int argc, const char **argv)
                               number_is_cleared = true;
                            }
                         }
-                     fclose( ifile);
                      if( !number_is_cleared && !is_scam)  /* Number is new to us */
                         if( !check_nomorobo( number))
                            is_scam = true;
+                     fprintf( ifile, "(%.3s) %.3s %.4s %s %.24s\n",
+                              number, number + 3, number + 6,
+                              is_scam ? "HANG UP" : "Passed", ctime( &t0));
+                     fclose( ifile);
                      }
                   if( is_scam)
                      {
