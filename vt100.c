@@ -167,7 +167,9 @@ int main( const int argc, const char **argv)
       }
    printf( VT_BG_DEFAULT "  Switch to default background\n");
    printf( "\033[0m\033[5mBlinking text (if supported)\n");
+   printf( "\033[0m\033[6mSGR 6 text (if supported)\n");
    printf( "\033[0m\033[7mReverse video (if supported)\n");
+   printf( "\033[0m\033[9mStrikeout video (if supported)\n");
    printf( "\033[10A\033[30CHey!  I moved up ten lines and right 30 columns!\n");
    printf( "\033[10BAnd now I'm back down on the next line.\n" VT_NORMAL);
    for( i = 0; i < 60; i++)
