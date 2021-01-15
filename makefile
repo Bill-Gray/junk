@@ -1,17 +1,43 @@
-all: testclip pend vt100
+
+CC=gcc
+
+ifdef _w64
+	CC=x86_64-w64-mingw32-gcc
+	EXE=.exe
+endif
+
+ifdef CLANG
+	CC=clang
+endif
+
+all: pend$(EXE) vt100$(EXE) test_def$(EXE) fb fbclock
 
 CFLAGS=-Wall -O3 -Wextra -pedantic
 
 .c.o:
 	$(CC) $(CFLAGS) -c $<
 
-pend : pend.c
-	$(CC) $(CFLAGS) -o pend pend.c -lm
+fb: fb.c
+	$(CC) $(CFLAGS) -o fb fb.c
 
-testclip : testclip.o x11copy.o xclipget.o
-	$(CC) $(CFLAGS) -o testclip testclip.o x11copy.o xclipget.o -lX11 -lpthread
+fbclock: fbclock.c
+	$(CC) $(CFLAGS) -o fbclock fbclock.c -lz
 
-vt100 : vt100.o
+launder: launder.c
+	$(CC) $(CFLAGS) -o launder$(EXE) launder.c
+
+pend$(EXE) : pend.c
+	$(CC) $(CFLAGS) -o pend$(EXE) pend.c -lm
+
+testclip$(EXE) : testclip.o xclip.o
+	$(CC) $(CFLAGS) -o testclip$(EXE) testclip.o xclip.o -lX11 -lpthread
+
+vt100$(EXE) : vt100.c
+	$(CC) $(CFLAGS) -o vt100$(EXE) vt100.c
+
+test_def$(EXE) : test_def.o
+	$(CC) $(CFLAGS) -o test_def$(EXE) test_def.o
 
 clean:
-	rm xclipget.o x11copy.o testclip.o pend testclip
+	rm xclip.o testclip.o pend$(EXE) testclip$(EXE) test_def$(EXE) vt100$(EXE)
+	rm fbclock fb
