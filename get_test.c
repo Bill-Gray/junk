@@ -6,10 +6,18 @@
 #include <unistd.h>
 #include <string.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif /* #ifdef __cplusplus */
+
 int wgetnstr_ex(WINDOW *win, char *str, int *loc, int maxlen, const int size);
 int wgetn_wstr_ex(WINDOW *win, wint_t *wstr, int *loc, const int maxlen, const int size);
 int getnstr_ex( char *str, int *loc, int maxlen, const int size);
 int getn_wstr_ex( wint_t *wstr, int *loc, const int maxlen, const int size);
+
+#ifdef __cplusplus
+}
+#endif  /* #ifdef __cplusplus */
 
 /* Test code for wgetnstr_ex.  See getstrex.c.  Compile with one of
 
@@ -28,11 +36,7 @@ int main( const int argc, const char **argv)
    const int max_len = (argc < 3 ? (int)sizeof( buff) : atoi( argv[2]));
 
    setlocale( LC_ALL, "");
-#if defined( XCURSES)
-   Xinitscr( argc, unused_argv);
-#else
    initscr( );
-#endif
    raw( );
    mousemask( ALL_MOUSE_EVENTS, NULL);
    cbreak( );
@@ -90,9 +94,6 @@ int main( const int argc, const char **argv)
       }
       while( rval > 0 && rval != 27);
    endwin( );
-#ifdef XCURSES
-   XCursesExit();
-#endif
    printf( "String was '%s';  location %d; rval %d\n", buff, loc, rval);
    return( 0);
 }
