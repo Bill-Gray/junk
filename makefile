@@ -10,7 +10,7 @@ ifdef CLANG
 	CC=clang
 endif
 
-all: pend$(EXE) vt100$(EXE) test_def$(EXE) fb fbclock
+all: pend$(EXE) vt100$(EXE) test_def$(EXE) fb fbclock psf_test$(EXE)
 
 CFLAGS=-Wall -O3 -Wextra -pedantic
 
@@ -38,6 +38,9 @@ vt100$(EXE) : vt100.c
 test_def$(EXE) : test_def.o
 	$(CC) $(CFLAGS) -o test_def$(EXE) test_def.o
 
+psf_test$(EXE) : psf_test.o psf.o
+	$(CC) $(CFLAGS) -o psf_test$(EXE) psf_test.o psf.o
+
 clean:
-	rm xclip.o testclip.o pend$(EXE) testclip$(EXE) test_def$(EXE) vt100$(EXE)
-	rm fbclock fb
+	-rm xclip.o testclip.o pend$(EXE) testclip$(EXE) test_def$(EXE) vt100$(EXE)
+	-rm fbclock fb psf.o psf_test$(EXE)
