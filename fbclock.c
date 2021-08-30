@@ -14,6 +14,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/* Some useful info on setting/getting palette entries,  and some other
+framebuffer issues,  is at
+
+http://raspberrycompote.blogspot.com/2013/03/low-level-graphics-on-raspberry-pi-part_7.html
+*/
+
+
 #include <assert.h>
 #include <err.h>
 #include <fcntl.h>
@@ -145,7 +152,7 @@ int main() {
          }
       }
 
-      if( vinfo.bits_per_pixel == 8) {
+      else if( vinfo.bits_per_pixel == 8) {
          uint32_t x, y;
          const char *s;
 
@@ -169,6 +176,10 @@ int main() {
             }
             left += header.glyphWidth;
          }
+      }
+      else {
+         fprintf( stderr, "%d bits/pixel isn't supported\n", vinfo.bits_per_pixel);
+         return( 0);
       }
       sleep( 1);
    }
