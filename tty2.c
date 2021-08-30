@@ -36,9 +36,7 @@ int open_port()
 {
     int fd;
 
-    printf( "Opening port\n");
     fd = open("/dev/ttyS4", O_RDWR | O_NOCTTY | O_NONBLOCK);
-    printf( "fd = %d\n", fd);
     if (fd == -1)
     {
         perror("Unable to open /dev/ttyS4: ");
@@ -117,10 +115,10 @@ static int check_nomorobo( const char *tel_no)
       return( -1);
       }
    snprintf( buff, sizeof( buff),
-            "wget https://www.nomorobo.com/lookup/%s -O /tmp/zq_tel", full_no);
+            "wget https://www.nomorobo.com/lookup/%s -q -O /tmp/zq_tel", full_no);
 // strcat( buff, "> /dev/null 2>&1");
    rval = system( buff);
-   printf( "%d: command '%s'\n", rval, buff);
+// printf( "%d: command '%s'\n", rval, buff);
 // unlink( "/tmp/zq_tel");
    return( rval);
 }
@@ -154,13 +152,32 @@ static int kbhit(void)
     return( c);
 }
 
-#define SET_TI "\033\135" "2;"
+/* When reading audio data,  any "real" 0x10 byte (a DLE) is doubled.
+A "this is the end of the data" one is not.  The following code takes
+a buffer and looks for pairs of 0x10 bytes and eliminates one of them.
+The return value will be equal to or less than n_read.  */
+
+static int remove_duplicate_dles( char *buff, int n_read)
+{
+   char *tptr;
+   int rval = n_read;
+
+   while( (tptr = strstr( buff, "\020\020")) != NULL)
+      {
+      n_read -= (tptr - buff) + 1;
+      buff = tptr + 1;
+      memmove( buff, buff + 1, n_read - 1);
+      rval--;
+      }
+   return( rval);
+}
+
 #define SET_TITLE "\033\1352;"
 
 int main( const int argc, const char **argv)
 {
     int i, j, fd = open_port();
-    char buff[200];
+    char buff[200], name[80];
 
     printf( SET_TITLE "Telephone Interceptor\a");
 
@@ -170,6 +187,7 @@ int main( const int argc, const char **argv)
         send_command( fd, argv[i], 1000000);
 
     i = 0;
+    *name = '\0';
     for( ;;)
     {
        if( read(fd, buff + i, 1) < 0)
@@ -187,6 +205,61 @@ int main( const int argc, const char **argv)
                  send_command( fd, "ATH1", 1000000);
                  send_command( fd, "ATA", 1000000);
                  }
+              else if( c == 2)     /* Ctrl-B = record */
+                 {
+                 FILE *ofile = fopen( "z.pcm", "wb");
+                 int n_shown = 0, total_read = 0;
+                 ssize_t n_read;
+                 bool prev_byte_was_dle = false;
+
+                 send_command( fd, "AT+FCLASS=8", 100000);
+                        /* above sets to use as voice modem */
+                 send_command( fd, "AT+VLS=1", 100000);
+                        /* above sets for picking up phone & listening/playback */
+                 send_command( fd, "AT+VSM=0", 100000);
+                        /* above sets for PCM */
+                 send_command( fd, "AT+VRX", 100000);
+                 printf( "Receiving data.  Hit any key to stop.\n");
+                 while( kbhit( ) <= 0)
+                    {
+                    n_read = read( fd, buff, sizeof( buff) - 1);
+                    if( n_read > 0)
+                       {
+                       if( prev_byte_was_dle)
+                          {
+                          memmove( buff + 1, buff, n_read);
+                          *buff = 0x10;
+                          n_read++;
+                          }
+                       if( buff[n_read - 1] == 0x10)
+                          {
+                          n_read--;
+                          prev_byte_was_dle = true;
+                          }
+                       else
+                          prev_byte_was_dle = false;
+                       n_read = remove_duplicate_dles( buff, n_read);
+                       fwrite( buff, n_read, 1, ofile);
+                       total_read += (int)n_read;
+                       }
+//                  if( total_read - n_shown > 100)
+                       {
+                       printf( "[%d]", total_read);
+                       n_shown = total_read;
+                       }
+                    }
+                 buff[0] = 3;
+                 write( fd, buff, 1);
+                 usleep( 100000);
+                 while( (n_read = read( fd, buff, sizeof( buff))) > 0)
+                    {
+                    fwrite( buff, n_read, 1, ofile);
+                    total_read += (int)n_read;
+                    }
+
+                 printf( "Done\n");
+                 fclose( ofile);
+                 }
               else
                  {
                  const int bytes_written = write( fd, &c, 1);
@@ -198,6 +271,7 @@ int main( const int argc, const char **argv)
            }
        else
            {
+//         printf( "From modem: '%d', char %d\n", buff[i], i);
            if( buff[i] < ' ')
                {
                buff[i] = '\0';
@@ -206,18 +280,22 @@ int main( const int argc, const char **argv)
                   bool is_scam = false;
                   time_t t0 = time( NULL);
 
-                  printf( "%.8s; Got string '%s'\n", ctime( &t0) + 11, buff);
-                  if( !memcmp( buff, "NAME = ", 7))
+                  if( !memcmp( buff, "RING", 4))
+                     printf( "Ring...");
+                  else if( !memcmp( buff, "NAME = ", 7))
                      {
                      FILE *ifile = fopen( "tel_nos.txt", "rb");
                      char ibuff[200];
 
+                     printf( "%.8s: '%s'\n", ctime( &t0) + 11, buff);
+                     strcpy( name, buff + 7);
+                     printf( "%s%s\a", SET_TITLE, buff + 7);
                      while( fgets( ibuff, sizeof( ibuff), ifile))
                         if( !strncmp( buff, ibuff, i) && ibuff[i] < ' ')
                            is_scam = true;
                      fclose( ifile);
                      }
-                  if( !memcmp( buff, "NMBR = ", 7))
+                  else if( !memcmp( buff, "NMBR = ", 7))
                      {
                      FILE *ifile = fopen( "allutlzd.txt", "rb");
                      char number[20];
@@ -271,20 +349,36 @@ int main( const int argc, const char **argv)
                               is_scam = true;
                            else
                               number_is_cleared = true;
+                           if( memcmp( buff + i, "Passed", 6))
+                              printf( "%s%s\a", SET_TITLE, buff + i);
                            }
                         }
                      if( !number_is_cleared && !is_scam)  /* Number is new to us */
+                        {
                         if( !check_nomorobo( number))
+                           {
                            is_scam = true;
-                     fprintf( ifile, "(%.3s) %.3s %.4s %s %.24s\n",
+                           printf( "NoMoRoBo says it's junk\n");
+                           }
+                        else if( !memcmp( number, "207", 3) &&
+                                               !memcmp( name + 12, " ME", 3))
+                           {
+                           is_scam = true;
+                           printf( "Pseudo-local scam\n");
+                           }
+                        }
+                     fprintf( ifile, "(%.3s) %.3s %.4s %s %.24s %s\n",
                               number, number + 3, number + 6,
-                              is_scam ? "HANG UP" : "Passed", ctime( &t0));
+                              is_scam ? "HANG UP" : "Passed", ctime( &t0), name);
                      fclose( ifile);
                      }
+                  else    /* not 'number', 'name',  or 'ring' */
+                     printf( "Got string '%s'\n", buff);
                   if( is_scam)
                      {
                      send_command( fd, "ATH1", 1000000);
-                     send_command( fd, "ATA", 1000000);
+/*                   send_command( fd, "ATA", 1000000);        */
+                     send_command( fd, "ATH0", 1000000);
                      }
                   }
                i = 0;
