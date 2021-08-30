@@ -1,15 +1,44 @@
-#define NCURSES_WIDECHAR 1
+#define _XOPEN_SOURCE_EXTENDED 1
 
-#include <curses.h>
+#if defined( VT) || defined( XCURSES) || defined( _WIN32)
+   #define PDC_WIDE
+   #define PDC_FORCE_UTF8
+   #define PDC_NCMOUSE
+   #include <curses.h>
+#else
+   #define NCURSES_WIDECHAR 1
+   #define HAVE_NCURSESW
+
+   #if defined( __cplusplus) && defined(__has_include) \
+                                    && __has_include( <ncursesw/cursesw.h>)
+      #include <ncursesw/cursesw.h>
+   #else
+      #include <curses.h>
+   #endif
+#endif
+
 #include <wchar.h>
 #include <assert.h>
-#include <unistd.h>
+#ifdef _WIN32
+   #include <stdbool.h>
+   #include <stdlib.h>
+#else
+   #include <unistd.h>
+#endif
 #include <string.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* #ifdef __cplusplus */
 
 int wgetnstr_ex(WINDOW *win, char *str, int *loc, int maxlen, const int size);
 int wgetn_wstr_ex(WINDOW *win, wint_t *wstr, int *loc, const int maxlen, const int size);
 int getnstr_ex( char *str, int *loc, int maxlen, const int size);
 int getn_wstr_ex( wint_t *wstr, int *loc, const int maxlen, const int size);
+
+#ifdef __cplusplus
+}
+#endif  /* #ifdef __cplusplus */
 
 #define MAXLINE 255
 #define _ECHAR     0x08  /* Erase char       (^H) */
@@ -17,6 +46,12 @@ int getn_wstr_ex( wint_t *wstr, int *loc, const int maxlen, const int size);
 #define _DLCHAR    0x15  /* Delete Line char (^U) */
 #define _ESCAPE    0x1B
 #define _TAB       0x09
+
+/* At least for the nonce,  the cursor will be 'normal' in overwrite mode
+and 'very visible' in insert mode.     */
+
+#define CURSOR_INSERT      2
+#define CURSOR_OVERWRITE   1
 
 /* "Extended" wgetn_wstr(),  for both ncurses and PDCurses.  You can
 supply an initial string,  location within that string,  and the maximum
@@ -39,13 +74,14 @@ reposition the cursor using the mouse.
 
    -- Currently in wide-char form only.  That's the only one I actually use.
 
-To do : return when Shift-Tab,  etc. are hit;  fullwidth/combining characters. */
+To do : return when Shift-Tab,  etc. are hit;  fullwidth/combining characters;
+perhaps allow text to be marked by click-drag.    */
 
 static bool _insert_mode = false;
 
 int wgetn_wstr_ex(WINDOW *win, wint_t *wstr, int *loc, const int maxlen, const int size)
 {
-    int i, x, y, offset = 0;
+    int i, x, y, offset = 0, initial_cursor_state;
     int rval = -1;
 #ifdef __PDCURSES__
     const bool oldcbreak = SP->cbreak; /* remember states */
@@ -61,6 +97,7 @@ int wgetn_wstr_ex(WINDOW *win, wint_t *wstr, int *loc, const int maxlen, const i
     x = getcurx( win);
     y = getcury( win);
 
+    initial_cursor_state = curs_set( _insert_mode ? CURSOR_INSERT : CURSOR_OVERWRITE);
     noecho( );              /* we do echo ourselves */
     cbreak();               /* ensure each key is returned immediately */
     nodelay( win, FALSE) ;  /* don't return -1 */
@@ -73,8 +110,12 @@ int wgetn_wstr_ex(WINDOW *win, wint_t *wstr, int *loc, const int maxlen, const i
         move( y, x);
         while( len < maxlen && wstr[len])
             len++;
+        assert( len != maxlen);
         if( len == maxlen)
-            return( -1);
+        {
+            rval = -1;
+            break;
+        }
         if( *loc < offset)
             offset = *loc;
         else if( offset < *loc - size + 1)
@@ -121,6 +162,7 @@ int wgetn_wstr_ex(WINDOW *win, wint_t *wstr, int *loc, const int maxlen, const i
 
             case KEY_IC:
                _insert_mode = !_insert_mode;
+               curs_set( _insert_mode ? CURSOR_INSERT : CURSOR_OVERWRITE);
                break;
 
             case KEY_HOME:
@@ -138,7 +180,9 @@ int wgetn_wstr_ex(WINDOW *win, wint_t *wstr, int *loc, const int maxlen, const i
 #ifdef __PDCURSES__
                nc_getmouse( &mouse_event);
 #else
-               getmouse( &mouse_event);
+               getmouse( &mouse_event);    /* sneak a peek at where the */
+               ungetmouse( &mouse_event);  /* click occurred */
+               wget_wch( win, &ch);
 #endif
                if( (mouse_event.bstate & BUTTON1_CLICKED) && mouse_event.y == y
                     && mouse_event.x >= x && mouse_event.x < x + size)
@@ -166,6 +210,24 @@ int wgetn_wstr_ex(WINDOW *win, wint_t *wstr, int *loc, const int maxlen, const i
                break;
 
             case _DWCHAR:       /* CTRL-W -- Delete word */
+               {
+               int i = 0;
+
+               while( *loc && wstr[*loc - 1] == ' ')
+                  (*loc)--;     /* back up over spaces,  if any */
+               while( *loc && wstr[*loc - 1] != ' ')
+                  (*loc)--;     /* back up to start of actual word */
+               while( *loc && wstr[*loc - 1] == ' ')
+                  {
+                  (*loc)--;     /* back up over preceding spaces,  if any */
+                  i++;
+                  }
+               while( *loc + i < len && wstr[*loc + i] != ' ')
+                  i++;        /* count characters in the word */
+               len -= i;
+               memmove( wstr + *loc, wstr + *loc + i,
+                                 (len + 1 - *loc) * sizeof( wint_t));
+               }
                break;
 
             case '\n':
@@ -205,6 +267,7 @@ int wgetn_wstr_ex(WINDOW *win, wint_t *wstr, int *loc, const int maxlen, const i
     SP->echo = oldecho;
     win->_nodelay = oldnodelay;
 #endif
+    curs_set( initial_cursor_state);
     return rval;
 }
 
@@ -220,12 +283,12 @@ int wgetnstr_ex(WINDOW *win, char *str, int *loc, int maxlen, const int size)
         maxlen = MAXLINE;
 
     memset( &ps, 0, sizeof( ps));
-    if( (ssize_t)mbsrtowcs( wstr, &strptr, maxlen, &ps) < 0)
+    if( mbsrtowcs( wstr, &strptr, maxlen, &ps) == (size_t)-1)
         return( -1);
 
     rval = wgetn_wstr_ex(win, (wint_t *)wstr, loc, maxlen, size);
     memset( &ps, 0, sizeof( ps));
-    if( (ssize_t)wcsrtombs(str, &wptr, maxlen, &ps) < 0)
+    if( wcsrtombs(str, &wptr, maxlen, &ps) == (size_t)-1)
         return( -1);
     return( rval);
 }
