@@ -173,6 +173,7 @@ static int remove_duplicate_dles( char *buff, int n_read)
 }
 
 #define SET_TITLE "\033\1352;"
+#define RESIZE_TERM "\033[8;%d;%dt"
 
 int main( const int argc, const char **argv)
 {
@@ -180,11 +181,11 @@ int main( const int argc, const char **argv)
     char buff[200], name[80];
 
     printf( SET_TITLE "Telephone Interceptor\a");
-
+    printf( RESIZE_TERM, 8, 73);
     setbuf( stdout, NULL);
     setbuf( stdin, NULL);
     for( i = 1; i < argc; i++)
-        send_command( fd, argv[i], 1000000);
+        send_command( fd, argv[i], 100000);
 
     i = 0;
     *name = '\0';
@@ -203,7 +204,7 @@ int main( const int argc, const char **argv)
               else if( c == 1)
                  {
                  send_command( fd, "ATH1", 1000000);
-                 send_command( fd, "ATA", 1000000);
+                 send_command( fd, "ATA", 100000);
                  }
               else if( c == 2)     /* Ctrl-B = record */
                  {
@@ -249,7 +250,8 @@ int main( const int argc, const char **argv)
                        }
                     }
                  buff[0] = 3;
-                 write( fd, buff, 1);
+                 if( write( fd, buff, 1) != 1)
+                    fprintf( stderr, "!! Byte not written !!\n");
                  usleep( 100000);
                  while( (n_read = read( fd, buff, sizeof( buff))) > 0)
                     {
@@ -378,7 +380,7 @@ int main( const int argc, const char **argv)
                      {
                      send_command( fd, "ATH1", 1000000);
 /*                   send_command( fd, "ATA", 1000000);        */
-                     send_command( fd, "ATH0", 1000000);
+                     send_command( fd, "ATH0", 100000);
                      }
                   }
                i = 0;
