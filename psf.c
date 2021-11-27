@@ -12,8 +12,9 @@ https://www.win.tue.nl/~aeb/linux/kbd/font-formats-1.html
    and for the (much simpler) 'vgafont' font format;  see _load_vgafont()
 below. The PSF fonts can contain Unicode information,  a table basically
 saying "Unicode point x corresponds to glyph y".  This code reads that
-information and sorts it by Unicode point,  so that when the glyph for a
-given Unicode point is desired,  we can binary-search for it. */
+information (if it's provided) and sorts it by Unicode point,  so that
+when the glyph for a given Unicode point is desired,  we can
+binary-search for it. */
 
 
 #define PSF1_MAGIC0     0x36
@@ -145,20 +146,20 @@ static int _load_psf2( struct font_info *f, const uint8_t *buff, const long file
             glyph_num++;
          else if( buff[i] != PSF2_STARTSEQ)
             {
-            unsigned cval;
+            unsigned cval;    /* decipher UTF8 value */
 
-            if( !(buff[i] & 0x80))
+            if( !(buff[i] & 0x80))           /* plain ASCII */
                cval = (unsigned)buff[i];
-            else if( (buff[i] & 0xe0) == 0xc0)
-               {
+            else if( (buff[i] & 0xe0) == 0xc0) /* two-byte UTF8 : code */
+               {                               /* points U+80 to U+7FF */
                cval = ((buff[i] & 0x1f) << 6) | (buff[i + 1] & 0x3f);
                i++;
                }
             else
-               {
+               {           /* three-byte UTF: U+800 to U+FFFF */
                cval = ((buff[i] & 0x0f) << 12) | ((buff[i + 1] & 0x3f) << 6) | (buff[i + 2] & 0x3f);
-               if( (buff[i] & 0xf0) == 0xf0)
-                  {
+               if( (buff[i] & 0xf0) == 0xf0)     /* Four-byte UTF:  */
+                  {                              /* U+10000 and beyond (SMP) */
                   cval = (cval << 6) | (buff[i + 3] & 0x3f);
                   i++;
                   }
