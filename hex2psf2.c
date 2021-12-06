@@ -3,7 +3,14 @@
 #include <stdlib.h>
 #include <assert.h>
 
-/* Code to read Unifont ASCII fonts,  with data such as
+/* Code to read Unifont fonts in the ASCII .hex format,  and output
+them in PSF type 2 format.  Unifont is available in .hex (and other)
+formats at
+
+https://unifoundry.com/unifont/index.html
+
+   The .hex format provides each glyph on a line giving the Unicode
+point,  then the pixels for that glyph encoded in hexadecimal.  Example:
 
 0034:00000000040C142444447E0404040000
 0035:000000007E4040407C020202423C0000
@@ -13,12 +20,31 @@
 0039:000000003C4242423E02020204380000
 003A:00000000000018180000001818000000
 
-   and output a PSF type 2 font,  as described at
+   The PSF type 2 font format is described at
 
 https://www.win.tue.nl/~aeb/linux/kbd/font-formats-1.html
 
+   The font will default to being output as a plain binary .psf file.
+However,  it can be useful to have the font be output as a C array,
+for direct inclusion in a program.  If you run
+
+./hex2psf2 input_file.hex output_file.psf2
+
+   you'll get a binary file.  If you add one more command line argument,
+such as
+
+./hex2psf2 input_file.hex output_file.c any_random_arg
+
+   the output will be a decently well-structured C array.  Note that if
+you run the full BMP Unifont .hex file,  or concatenate it with the SMP
+file,  you can make a relatively humongous .psf or .c file.  I usually
+edit the input to contain some subset of Unifont.
+
    At present,  this is limited to 8x16 fonts.  In the following structure,
-'bits' contains 32 bytes,  to allow for possible 16x16 versions.  */
+'bits' contains 32 bytes,  to allow for possible 16x16 versions.  (PSF2
+assumes all glyphs are the same size.  For fullwidth characters and
+emoji,  we'll either need to make two fonts -- one 8x16,  one 16x16 --
+or modify the PSF2 format.) */
 
 typedef struct
 {
@@ -125,17 +151,55 @@ static int get_font_bits( const char *buff, glyph_t *glyph)
    return( rval);
 }
 
+static void _output_header( const struct psf2_header *hdr, FILE *ofile)
+{
+   fprintf( ofile, "    0x72, 0xB5, 0x4A, 0x86,   /* 'magic' PSF2 bytes */\n");
+   fprintf( ofile, "    0x00, 0x00, 0x00, 0x00,   /* version */\n");
+   fprintf( ofile, "    0x20, 0x00, 0x00, 0x00,   /* this header is 0x20 bytes long */\n");
+   fprintf( ofile, "    0x01, 0x00, 0x00, 0x00,   /* flagged as 'has Unicode tbl' */\n");
+   fprintf( ofile,
+        "    0x%02x, 0x%02x, 0x%02x, 0x00,   /* %d glyphs */\n",
+            (unsigned)( hdr->length & 0xff),
+            (unsigned)( hdr->length >> 8) & 0xff,
+            (unsigned)( hdr->length >> 16), hdr->length);
+   fprintf( ofile, "    0x10, 0x00, 0x00, 0x00,   /* bytes/glyph */\n");
+   fprintf( ofile, "    0x10, 0x00, 0x00, 0x00,   /* glyph height (=16 pixels) */\n");
+   fprintf( ofile, "    0x08, 0x00, 0x00, 0x00,   /* glyph width (=8 pixels) */\n");
+}
+
+static void _output_glyph( const glyph_t *glyph, FILE *ofile)
+{
+   int i;
+
+   fprintf( ofile, " /* U+%x */ ", glyph->code_point);
+   for( i = 0; i < glyph->height; i++)
+      fprintf( ofile, " 0x%02x,", (unsigned char)glyph->bits[i]);
+   fprintf( ofile, "\n");
+}
+
+static void _output_utf8_info( const int code_point, const char *bytes,
+                                     const int size, FILE *ofile)
+{
+   int i;
+
+   fprintf( ofile, " /* U+%x */ ", code_point);
+   for( i = 0; i < size; i++)
+      fprintf( ofile, "0x%02x, ", (unsigned char)bytes[i]);
+   fprintf( ofile, "\n");
+}
+
 #define IS_POWER_OF_TWO( n)    (((n) & ((n)-1)) == 0)
 
 int main( const int argc, const char **argv)
 {
    FILE *ifile = fopen( argv[1], "rb"), *ofile;
    struct psf2_header hdr;
-   int i, n_glyphs = 0;
+   int i, n_glyphs = 0, write_c_array = (argc == 4);
+   int array_size = sizeof( struct psf2_header);
    char buff[100];
    glyph_t *glyph = (glyph_t *)malloc( sizeof( glyph_t));
 
-   assert( argc == 3);
+   assert( argc == 3 || argc == 4);
    assert( ifile);
    if( fread( &hdr, 1, sizeof( hdr), ifile) != sizeof( hdr))
       {
@@ -153,6 +217,10 @@ int main( const int argc, const char **argv)
    while( fgets( buff, sizeof( buff), ifile))
       if( !get_font_bits( buff, glyph + n_glyphs))
          {
+         char utf8[5];
+
+         array_size += hdr.charsize + 1 +
+                  PDC_wc_to_utf8( utf8, glyph[n_glyphs].code_point);
          n_glyphs++;
          if( IS_POWER_OF_TWO( n_glyphs))
             glyph = (glyph_t *)realloc( glyph, 2 * n_glyphs * sizeof( glyph_t));
@@ -163,18 +231,32 @@ int main( const int argc, const char **argv)
    assert( ofile);
    hdr.headersize = sizeof( hdr);
    hdr.length = n_glyphs;
-   fwrite( &hdr, 1, sizeof( hdr), ofile);
+   if( write_c_array)
+      {
+      fprintf( ofile, "const unsigned char psf2_font[%d] = {\n", array_size);
+      _output_header( &hdr, ofile);
+      }
+   else
+      fwrite( &hdr, 1, sizeof( hdr), ofile);
    for( i = 0; i < n_glyphs; i++)
-      fwrite( glyph[i].bits, hdr.charsize, 1, ofile);
+      if( write_c_array)
+         _output_glyph( glyph + i, ofile);
+      else
+         fwrite( glyph[i].bits, hdr.charsize, 1, ofile);
    for( i = 0; i < n_glyphs; i++)
       {
       char utf8[5];
       const int osize = PDC_wc_to_utf8( utf8, glyph[i].code_point);
 
       utf8[osize] = (char)PSF2_SEPARATOR;
-      fwrite( utf8, osize + 1, 1, ofile);
+      if( write_c_array)
+         _output_utf8_info( glyph[i].code_point, utf8, osize + 1, ofile);
+      else
+         fwrite( utf8, osize + 1, 1, ofile);
       }
    free( glyph);
+   if( write_c_array)
+      fprintf( ofile, "};\n");
    fclose( ofile);
    return( 0);
 }
