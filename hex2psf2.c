@@ -137,8 +137,6 @@ int main( const int argc, const char **argv)
 
    assert( argc == 3);
    assert( ifile);
-   ofile = fopen( argv[2], "wb");
-   assert( ofile);
    if( fread( &hdr, 1, sizeof( hdr), ifile) != sizeof( hdr))
       {
       fprintf( stderr, "Couldn't read header from %s\n", argv[1]);
@@ -152,7 +150,6 @@ int main( const int argc, const char **argv)
    hdr.width = 8;
    hdr.height = hdr.charsize = 16;
    hdr.version = 0;
-   fwrite( &hdr, 1, sizeof( hdr), ofile);
    while( fgets( buff, sizeof( buff), ifile))
       if( !get_font_bits( buff, glyph + n_glyphs))
          {
@@ -161,7 +158,12 @@ int main( const int argc, const char **argv)
             glyph = (glyph_t *)realloc( glyph, 2 * n_glyphs * sizeof( glyph_t));
          }
    fclose( ifile);
-   hdr.headersize = (uint32_t)ftell( ofile);
+
+   ofile = fopen( argv[2], "wb");
+   assert( ofile);
+   hdr.headersize = sizeof( hdr);
+   hdr.length = n_glyphs;
+   fwrite( &hdr, 1, sizeof( hdr), ofile);
    for( i = 0; i < n_glyphs; i++)
       fwrite( glyph[i].bits, hdr.charsize, 1, ofile);
    for( i = 0; i < n_glyphs; i++)
@@ -173,9 +175,6 @@ int main( const int argc, const char **argv)
       fwrite( utf8, osize + 1, 1, ofile);
       }
    free( glyph);
-   hdr.length = n_glyphs;
-   fseek( ofile, 0L, SEEK_SET);
-   fwrite( &hdr, 1, sizeof( hdr), ofile);
    fclose( ofile);
    return( 0);
 }
