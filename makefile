@@ -10,12 +10,15 @@ ifdef CLANG
 	CC=clang
 endif
 
-all: pend$(EXE) vt100$(EXE) test_def$(EXE) fb fbclock psf_test$(EXE)
+all: boxize$(EXE) pend$(EXE) vt100$(EXE) test_def$(EXE) fb fbclock psf_test$(EXE)
 
 CFLAGS=-Wall -O3 -Wextra -pedantic
 
 .c.o:
 	$(CC) $(CFLAGS) -c $<
+
+boxize: boxize.c
+	$(CC) $(CFLAGS) -o boxize$(EXE) boxize.c
 
 fb: fb.c
 	$(CC) $(CFLAGS) -o fb fb.c
