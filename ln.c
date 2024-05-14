@@ -17,7 +17,9 @@ versions of the algorithm.)
 n terms     worst error                   n terms     worst error
  1          3.5e-3                         4          2.9e-8
  2          6.1e-5                         5          7.1e-10
- 3          1.3e-6   (this code)           6          1.8e-11        */
+ 3          1.3e-6   (this code)           6          1.8e-11
+
+Compile with gcc -Wall -Wextra -pedantic -o ln ln.c   */
 
 #include <assert.h>
 
@@ -46,9 +48,10 @@ static double approx_ln( double x)
 }
 
 /* A small bit of text code to compare the result from the above to the
-result from the 'normal' math library.  The maximum error will be seen in
-the neighborhood of 2^(n+0.5) for any integer n.  The error will be zero
-for any 2^n.         */
+result from the 'normal' math library.  The error will be zero for
+x = 2^n and x = 2^(n+.5).  (The latter is because of the 'scaling' factor
+shown above,  used to ensure continuity at those points.)  The maximum error
+is at x = 1.28395 * 2^n and x = 2^n / 1.28395. */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -59,6 +62,6 @@ int main( const int argc, const char **argv)
    const double x = atof( argv[1]);
    const double ln = log( x), approx = approx_ln( x);
 
-   printf( "%.16f  %.16f  %.16f\n", ln, approx, approx - ln);
+   printf( "%.16f  %.16f%20.16f\n", ln, approx, approx - ln);
    return( 0);
 }
