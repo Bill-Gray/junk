@@ -102,6 +102,8 @@ static int check_nomorobo( const char *tel_no)
 {
    char buff[150], full_no[20];
    int rval;
+   const char *output_filename = "/tmp/zq_tel";
+   FILE *ifile;
 
    if( strlen( tel_no) == 7)
       snprintf( full_no, sizeof( full_no), "207-%.3s-%s",
@@ -115,11 +117,24 @@ static int check_nomorobo( const char *tel_no)
       return( -1);
       }
    snprintf( buff, sizeof( buff),
-            "wget https://www.nomorobo.com/lookup/%s -q -O /tmp/zq_tel", full_no);
+            "wget https://www.nomorobo.com/lookup/%s -q -O %s", full_no, output_filename);
 // strcat( buff, "> /dev/null 2>&1");
    rval = system( buff);
-// printf( "%d: command '%s'\n", rval, buff);
-// unlink( "/tmp/zq_tel");
+   assert( !rval);
+   ifile = fopen( output_filename, "rb");
+   assert( ifile);
+   rval = -1;
+   while( rval == -1 && fgets( buff, sizeof( buff), ifile))
+      if( strstr( buff, "Robocaller Warning!"))
+         rval = 0;
+      else if( strstr( buff, "Phone Scam Alert!"))
+         rval = 0;
+      else if( strstr( buff, "Unknown Caller"))
+         rval = 1;
+   fclose( ifile);
+   printf( "buff : %s", buff);
+   assert( rval != -1);
+   unlink( output_filename);
    return( rval);
 }
 
@@ -172,8 +187,23 @@ static int remove_duplicate_dles( char *buff, int n_read)
    return( rval);
 }
 
+static bool is_state_abbr( const char *abbr)
+{
+   const char *state_abbr =
+             "AL AK AZ AR CA CO CT DE FL GA HI ID IL IN "
+             "IA KS KY LA ME MD MA MI MN MS MO MT NE NV "
+             "NH NJ NM NY NC ND OH OK OR PA RI SC SD TN "
+             "TX UT VT VA WA WV WI WY DC GU MH MP PR VI "
+             "AB BC MB NB NL NT NS NU ON PE QC SK YT ";
+
+   return( abbr[0] && abbr[1] && !abbr[2] && strstr( state_abbr, abbr));
+}
+
+#define CSI "\x1b["
+#define OSC "\x1b]"
+
 #define SET_TITLE "\033\1352;"
-#define RESIZE_TERM "\033[8;%d;%dt"
+#define RESIZE_TERM CSI "8;%d;%dt"
 
 int main( const int argc, const char **argv)
 {
@@ -209,7 +239,7 @@ int main( const int argc, const char **argv)
               else if( c == 2)     /* Ctrl-B = record */
                  {
                  FILE *ofile = fopen( "z.pcm", "wb");
-                 int n_shown = 0, total_read = 0;
+                 int total_read = 0;
                  ssize_t n_read;
                  bool prev_byte_was_dle = false;
 
@@ -243,11 +273,13 @@ int main( const int argc, const char **argv)
                        fwrite( buff, n_read, 1, ofile);
                        total_read += (int)n_read;
                        }
-//                  if( total_read - n_shown > 100)
+#ifdef NOT_USED
+                    if( total_read - n_shown > 100)
                        {
                        printf( "[%d]", total_read);
                        n_shown = total_read;
                        }
+#endif
                     }
                  buff[0] = 3;
                  if( write( fd, buff, 1) != 1)
@@ -290,6 +322,7 @@ int main( const int argc, const char **argv)
                      char ibuff[200];
 
                      printf( "%.8s: '%s'\n", ctime( &t0) + 11, buff);
+                     memset( name, 0, sizeof( name));
                      strcpy( name, buff + 7);
                      printf( "%s%s\a", SET_TITLE, buff + 7);
                      while( fgets( ibuff, sizeof( ibuff), ifile))
@@ -362,8 +395,7 @@ int main( const int argc, const char **argv)
                            is_scam = true;
                            printf( "NoMoRoBo says it's junk\n");
                            }
-                        else if( !memcmp( number, "207", 3) &&
-                                               !memcmp( name + 12, " ME", 3))
+                        else if( name[12] == ' ' && is_state_abbr( name + 13))
                            {
                            is_scam = true;
                            printf( "Pseudo-local scam\n");
