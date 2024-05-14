@@ -13,9 +13,9 @@ https://en.wikipedia.org/wiki/Lagrange_point
 
 for further numerical examples (though they're slightly in error;
 compare to examples from this code shown at bottom.) This is used
-in Find_Orb (see mpc_orb.cpp,  rovers.txt,  environ.def) to
-compute locations of L1, L2, L3,  mostly so that ephemerides from
-those positions can be given.  Compile with
+in Find_Orb (see mpc_orb.cpp,  rovers.txt) to compute locations
+of L1, L2, L3,  mostly so that ephemerides from those positions
+can be given.  Compile with
 
 gcc -Wall -Wextra -pedantic -o lagrange lagrange.c -lm
 
@@ -23,7 +23,7 @@ gcc -Wall -Wextra -pedantic -o lagrange lagrange.c -lm
 may actually be an analytic solution in this case.  I didn't try
 very hard to find one.  Numerically finding the zeroes is quite
 easy (secant method is used),  and I only do this once per
-system,  then store the answer in 'environ.def'.    */
+system,  then store the answer in 'rovers.txt'.    */
 
 static double lagrange_func( const double mu, const double x)
 {
