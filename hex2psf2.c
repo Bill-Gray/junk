@@ -128,7 +128,7 @@ static int get_font_bits( const char *buff, glyph_t *glyph)
       tptr++;
    if( *tptr == ':' && tptr[33] < ' ')
       {
-      unsigned code_point;
+      unsigned code_point = (unsigned)-1;
 
       sscanf( buff, "%x", &code_point);
       glyph->code_point = code_point;
@@ -201,11 +201,6 @@ int main( const int argc, const char **argv)
 
    assert( argc == 3 || argc == 4);
    assert( ifile);
-   if( fread( &hdr, 1, sizeof( hdr), ifile) != sizeof( hdr))
-      {
-      fprintf( stderr, "Couldn't read header from %s\n", argv[1]);
-      return( -1);
-      }
    hdr.magic[0] = PSF2_MAGIC0;
    hdr.magic[1] = PSF2_MAGIC1;
    hdr.magic[2] = PSF2_MAGIC2;
