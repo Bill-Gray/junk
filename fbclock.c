@@ -1,5 +1,8 @@
 /* Copyright (C) 2018  C. McEnroe <june@causal.agency>
  *
+ * Code came from https://cmcenroe.me/2018/01/30/fbclock.html
+ * https://github.com/causal-agent/src/blob/bd4afa842d5893a54ba9525bb7c9a2c691ec6325/bin/fbclock.c
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
